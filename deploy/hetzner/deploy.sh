@@ -64,12 +64,12 @@ ssh "$BIDLENS_SSH_HOST" \
 
 echo "▸ prisma db push"
 ssh "$BIDLENS_SSH_HOST" \
-  "cd $REMOTE_DIR && docker compose exec -T bidlens-app npx prisma db push --skip-generate || true"
+  "cd $REMOTE_DIR && docker compose exec -T bidlens-app sh -lc './node_modules/.bin/prisma db push --skip-generate' || true"
 
 if [ "$BIDLENS_SEED" = "1" ]; then
   echo "▸ seeding synthetic demo data"
   ssh "$BIDLENS_SSH_HOST" \
-    "cd $REMOTE_DIR && docker compose exec -T bidlens-app node node_modules/.bin/tsx prisma/seed.ts || true"
+    "cd $REMOTE_DIR && docker compose exec -T bidlens-app sh -lc './node_modules/.bin/tsx prisma/seed.ts' || true"
 fi
 
 HOST_IP="${BIDLENS_SSH_HOST#*@}"
