@@ -23,7 +23,7 @@
 set -euo pipefail
 
 : "${BIDLENS_SSH_HOST:?Set BIDLENS_SSH_HOST=user@ip (e.g. root@1.2.3.4)}"
-BIDLENS_PORT="${BIDLENS_PORT:-3080}"
+BIDLENS_PORT="${BIDLENS_PORT:-3082}"
 BIDLENS_ENV_FILE="${BIDLENS_ENV_FILE:-.env.local}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/bidlens}"
 BIDLENS_REPO="${BIDLENS_REPO:-https://github.com/santoshrnath/bidlens.git}"

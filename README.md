@@ -86,7 +86,7 @@ docker compose exec bidlens-app npx prisma db push
 docker compose exec bidlens-app node node_modules/.bin/tsx prisma/seed.ts
 
 # 4. Open
-open http://localhost:3080
+open http://localhost:3082
 ```
 
 ### Pure-Node dev (no Docker)

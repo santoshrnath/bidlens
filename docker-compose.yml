@@ -20,7 +20,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://bidlens:bidlens@bidlens-db:5432/bidlens?schema=public
     ports:
-      - "${BIDLENS_PORT:-3080}:3000"
+      - "${BIDLENS_PORT:-3082}:3000"
     depends_on:
       bidlens-db:
         condition: service_healthy
