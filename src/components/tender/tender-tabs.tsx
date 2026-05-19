@@ -8,8 +8,10 @@ const TABS = [
   { key: "", label: "Overview" },
   { key: "comparison", label: "Comparison" },
   { key: "scores", label: "Scores" },
+  { key: "score", label: "My Scoring" },
   { key: "risks", label: "Risks" },
   { key: "clarifications", label: "Clarifications" },
+  { key: "approval", label: "Approval" },
   { key: "audit", label: "Audit Trail" },
 ];
 

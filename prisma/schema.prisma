@@ -59,12 +59,41 @@ enum AuditAction {
   RISK_FLAGGED
   CLARIFICATION_RAISED
   CLARIFICATION_ANSWERED
+  BAFO_OPENED
+  BAFO_SUBMITTED
   SCORE_SUBMITTED
+  SCORE_LOCKED
   WEIGHTING_CHANGED
   COMMITTEE_INVITED
   AWARD_RECOMMENDED
+  APPROVAL_APPROVED
+  APPROVAL_REJECTED
   AWARD_APPROVED
   DEFENSIBILITY_PACK_EXPORTED
+}
+
+enum RoundType {
+  CLARIFICATION
+  BAFO
+}
+
+enum ApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+  ABSTAINED
+}
+
+enum NotificationKind {
+  RISK_FLAGGED
+  CLARIFICATION_DUE
+  CLARIFICATION_RESPONDED
+  SCORE_REQUESTED
+  APPROVAL_REQUESTED
+  AWARD_APPROVED
+  BID_RECEIVED
+  BAFO_OPENED
+  MENTIONED
 }
 
 model Tender {
@@ -261,9 +290,11 @@ model ClarificationRound {
   id          String   @id @default(cuid())
   tenantId    String   @default("default")
   tenderId    String
+  type        RoundType @default(CLARIFICATION)
   number      Int
   openedAt    DateTime @default(now())
   closedAt    DateTime?
+  dueAt       DateTime?
   note        String?  @db.Text
 
   tender      Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
@@ -306,16 +337,54 @@ model AwardRecommendation {
   rationale        String?  @db.Text
   status           String   @default("draft") // draft | submitted | approved | rejected
   requestedBy      String?
-  approvers        Json?    // [{ name, role, decision, at }]
   contractValue    Float?
   currency         String?
 
   tender           Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  approvalSteps    ApprovalStep[]
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+model ApprovalStep {
+  id                String   @id @default(cuid())
+  tenantId          String   @default("default")
+  awardId           String
+  order             Int
+  approverName      String
+  approverEmail     String?
+  approverRole      String
+  threshold         Float?
+  decision          ApprovalDecision @default(PENDING)
+  decidedAt         DateTime?
+  comment           String?  @db.Text
+
+  award             AwardRecommendation @relation(fields: [awardId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([awardId])
+}
+
+model Notification {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("default")
+  recipient    String   // userId or email or "default" for the demo pool
+  tenderId     String?
+  kind         NotificationKind
+  title        String
+  body         String?  @db.Text
+  href         String?
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([recipient])
+  @@index([isRead])
 }
 
 model AuditEntry {

@@ -1,8 +1,21 @@
-"use client";
+import { Maximize2, Search } from "lucide-react";
+import Link from "next/link";
+import { NotificationBell } from "@/components/shell/notification-bell";
+import { prisma } from "@/lib/prisma";
+import { getAuthContext, DEFAULT_TENANT } from "@/lib/auth-context";
 
-import { Bell, Maximize2, Search } from "lucide-react";
+export async function Topbar() {
+  const ctx = await getAuthContext();
+  const recipient = ctx.userId ?? DEFAULT_TENANT;
+  const unread = await prisma.notification
+    .count({
+      where: {
+        isRead: false,
+        recipient: { in: [recipient, DEFAULT_TENANT] },
+      },
+    })
+    .catch(() => 0);
 
-export function Topbar() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-ink-200/70 bg-white/85 px-4 backdrop-blur sm:px-6 lg:px-8">
       <div className="flex flex-1 items-center gap-3">
@@ -15,14 +28,14 @@ export function Topbar() {
           />
         </div>
       </div>
-      <button className="hidden h-9 w-9 items-center justify-center rounded-xl border border-ink-200/70 bg-white text-ink-500 transition hover:text-ink-800 sm:grid">
-        <Bell className="h-4 w-4" />
-        <span className="sr-only">Notifications</span>
-      </button>
-      <button className="hidden h-9 w-9 items-center justify-center rounded-xl border border-ink-200/70 bg-white text-ink-500 transition hover:text-ink-800 sm:grid">
+      <NotificationBell unread={unread} />
+      <Link
+        href="#"
+        className="hidden h-9 w-9 items-center justify-center rounded-xl border border-ink-200/70 bg-white text-ink-500 transition hover:text-ink-800 sm:grid"
+        aria-label="Fullscreen"
+      >
         <Maximize2 className="h-4 w-4" />
-        <span className="sr-only">Fullscreen</span>
-      </button>
+      </Link>
     </header>
   );
 }

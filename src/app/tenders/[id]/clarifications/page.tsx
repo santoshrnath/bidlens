@@ -19,20 +19,41 @@ export default async function ClarificationsPage({ params }: { params: { id: str
 
   return (
     <div className="space-y-5">
-      {tender.clarifications.map((round) => (
+      {tender.clarifications.map((round) => {
+        const isBafo = round.type === "BAFO";
+        return (
         <section
           key={round.id}
-          className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft"
+          className={cn(
+            "overflow-hidden rounded-2xl border bg-white shadow-soft",
+            isBafo ? "border-violet-200" : "border-ink-200/70",
+          )}
         >
-          <header className="flex items-center justify-between gap-3 border-b border-ink-200/70 bg-canvas-50/50 px-5 py-3.5">
-            <div>
-              <h2 className="font-display text-[15px] font-semibold tracking-tight text-ink-900">
-                Round {round.number} · Clarifications
-              </h2>
-              <p className="text-[11px] text-ink-500">
-                Opened {fmtDate(round.openedAt)} · {round.items.length} items ·{" "}
-                {round.items.filter((i) => i.status === "open").length} open
-              </p>
+          <header
+            className={cn(
+              "flex items-center justify-between gap-3 border-b px-5 py-3.5",
+              isBafo
+                ? "border-violet-200 bg-violet-50/40"
+                : "border-ink-200/70 bg-canvas-50/50",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <span className={isBafo ? "pill-violet" : "pill"}>
+                {isBafo ? "BAFO" : `Round ${round.number}`}
+              </span>
+              <div>
+                <h2 className="font-display text-[15px] font-semibold tracking-tight text-ink-900">
+                  {isBafo
+                    ? "Best And Final Offer"
+                    : `Round ${round.number} · Clarifications`}
+                </h2>
+                <p className="text-[11px] text-ink-500">
+                  Opened {fmtDate(round.openedAt)}
+                  {round.dueAt ? ` · due ${fmtDate(round.dueAt)}` : ""} ·{" "}
+                  {round.items.length} items ·{" "}
+                  {round.items.filter((i) => i.status === "open").length} open
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <ClarificationDraftButton tenderName={tender.name} />
@@ -102,7 +123,8 @@ export default async function ClarificationsPage({ params }: { params: { id: str
             ))}
           </ul>
         </section>
-      ))}
+        );
+      })}
 
       <section className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5">
         <div className="flex items-center gap-2 text-violet-700">

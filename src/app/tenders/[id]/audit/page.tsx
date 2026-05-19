@@ -25,12 +25,21 @@ export default async function AuditPage({ params }: { params: { id: string } }) 
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn-ghost">
+            <a
+              href={`/api/tenders/${tender.id}/defensibility-pack`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-ghost"
+            >
               <ShieldCheck className="h-4 w-4" /> View hash chain
-            </button>
-            <button className="btn-primary">
+            </a>
+            <a
+              href={`/api/tenders/${tender.id}/defensibility-pack`}
+              download
+              className="btn-primary"
+            >
               <Download className="h-4 w-4" /> Export pack
-            </button>
+            </a>
           </div>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">

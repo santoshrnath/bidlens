@@ -68,7 +68,7 @@ export async function getTender(id: string) {
         orderBy: { number: "desc" },
       },
       audit: { orderBy: { createdAt: "desc" } },
-      award: true,
+      award: { include: { approvalSteps: { orderBy: { order: "asc" } } } },
     },
   });
 }

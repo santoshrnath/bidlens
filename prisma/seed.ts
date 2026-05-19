@@ -15,6 +15,8 @@ async function main() {
   console.log("◆ BidLens seed");
 
   // Idempotent: wipe demo data first
+  await prisma.notification.deleteMany();
+  await prisma.approvalStep.deleteMany();
   await prisma.auditEntry.deleteMany();
   await prisma.awardRecommendation.deleteMany();
   await prisma.clarificationItem.deleteMany();
@@ -808,8 +810,8 @@ async function main() {
     ],
   });
 
-  // Award recommendation (draft)
-  await prisma.awardRecommendation.create({
+  // Award recommendation (submitted, awaiting approvers)
+  const award = await prisma.awardRecommendation.create({
     data: {
       tenderId: tender.id,
       recommendedBidId: bids[0].id,
@@ -819,12 +821,184 @@ async function main() {
       requestedBy: "Arjun Sharma",
       contractValue: 2_100_000,
       currency: "USD",
-      approvers: [
-        { name: "Daniel Roberts", role: "Committee Chair", decision: "pending", at: null },
-        { name: "Fahad Al Mansouri", role: "Finance", decision: "approved", at: "2026-05-10" },
-      ],
     },
   });
+
+  // Approval chain — staged: procurement → finance → legal → committee chair → CFO
+  const approvalSeeds: {
+    order: number;
+    name: string;
+    email: string;
+    role: string;
+    threshold: number;
+    decision: "PENDING" | "APPROVED" | "REJECTED";
+    decidedAt?: Date | null;
+    comment?: string;
+  }[] = [
+    {
+      order: 1,
+      name: "Arjun Sharma",
+      email: "arjun.sharma@acme.example",
+      role: "Procurement Lead",
+      threshold: 0,
+      decision: "APPROVED",
+      decidedAt: new Date("2026-05-10T09:05:00"),
+      comment: "Recommendation submitted on behalf of the committee.",
+    },
+    {
+      order: 2,
+      name: "Fahad Al Mansouri",
+      email: "fahad.almansouri@acme.example",
+      role: "Finance",
+      threshold: 1_000_000,
+      decision: "APPROVED",
+      decidedAt: new Date("2026-05-10T12:18:00"),
+      comment: "Budget aligned within approved capex envelope.",
+    },
+    {
+      order: 3,
+      name: "Priya Iyer",
+      email: "priya.iyer@acme.example",
+      role: "Legal",
+      threshold: 1_000_000,
+      decision: "APPROVED",
+      decidedAt: new Date("2026-05-11T15:42:00"),
+      comment: "T&Cs aligned with RFP. Liability cap accepted at 100% of contract value.",
+    },
+    {
+      order: 4,
+      name: "Daniel Roberts",
+      email: "daniel.roberts@acme.example",
+      role: "Committee Chair",
+      threshold: 0,
+      decision: "PENDING",
+    },
+    {
+      order: 5,
+      name: "Reema Khaled",
+      email: "reema.khaled@acme.example",
+      role: "CFO",
+      threshold: 2_000_000,
+      decision: "PENDING",
+    },
+  ];
+  for (const a of approvalSeeds) {
+    await prisma.approvalStep.create({
+      data: {
+        awardId: award.id,
+        order: a.order,
+        approverName: a.name,
+        approverEmail: a.email,
+        approverRole: a.role,
+        threshold: a.threshold,
+        decision: a.decision as any,
+        decidedAt: a.decidedAt ?? null,
+        comment: a.comment,
+      },
+    });
+  }
+
+  // BAFO round — only for the 2 shortlisted vendors
+  const bafo = await prisma.clarificationRound.create({
+    data: {
+      tenderId: tender.id,
+      type: "BAFO",
+      number: 2,
+      openedAt: new Date("2026-05-08T10:00:00"),
+      dueAt: new Date("2026-05-12T17:00:00"),
+      note: "BAFO round issued to the two technically-qualifying vendors after Round 1 clarifications.",
+    },
+  });
+  await prisma.clarificationItem.createMany({
+    data: [
+      {
+        roundId: bafo.id,
+        bidId: bids[0].id,
+        schemaItemRef: "BAFO — Final price + clean T&Cs",
+        question:
+          "Submit your Best And Final Offer: final lump-sum + run-rate price, clean T&Cs reflecting Round 1 outcomes, and confirmation of 120-day validity.",
+        status: "responded",
+        response:
+          "Final price USD 2,100,000 (same as initial). Clean T&Cs attached. Validity confirmed 120 days. Optional acceleration of cutover by 3 weeks at +USD 35,000.",
+        respondedAt: new Date("2026-05-11T16:30:00"),
+        raisedBy: "Arjun Sharma",
+      },
+      {
+        roundId: bafo.id,
+        bidId: bids[2].id,
+        schemaItemRef: "BAFO — Final price + clean T&Cs",
+        question:
+          "Submit your Best And Final Offer: final price, clean T&Cs reflecting Round 1 outcomes (local content commitment to 58%), and confirmation of 120-day validity.",
+        status: "open",
+        raisedBy: "Arjun Sharma",
+      },
+    ],
+  });
+
+  // Notifications — for the "default" demo pool inbox
+  const now = new Date();
+  const mins = (m: number) => new Date(now.getTime() - m * 60_000);
+  const notifs: { recipient: string; kind: any; title: string; body?: string; href?: string; isRead?: boolean; tenderId?: string; createdAt: Date }[] = [
+    {
+      recipient: "default",
+      kind: "APPROVAL_REQUESTED",
+      title: "Award approval requested — Enterprise Data Center Migration",
+      body: "Arjun has submitted an award recommendation to TechNova Solutions (USD 2,100,000). Committee Chair sign-off required.",
+      href: `/tenders/${tender.id}/approval`,
+      tenderId: tender.id,
+      createdAt: mins(12),
+    },
+    {
+      recipient: "default",
+      kind: "RISK_FLAGGED",
+      title: "High-severity risk on Cloudify Systems",
+      body: "AI surfaced: Cloudify Systems caps liability at 5% of contract value (RFP requires ≥100%).",
+      href: `/tenders/${tender.id}/risks`,
+      tenderId: tender.id,
+      createdAt: mins(58),
+    },
+    {
+      recipient: "default",
+      kind: "CLARIFICATION_RESPONDED",
+      title: "NextGen Infra responded to clarification on Local Content",
+      body: "Vendor commits to 58% in-country resourcing, contingent on extending Phase 1 by 4 weeks.",
+      href: `/tenders/${tender.id}/clarifications`,
+      tenderId: tender.id,
+      createdAt: mins(180),
+    },
+    {
+      recipient: "default",
+      kind: "BAFO_OPENED",
+      title: "BAFO round opened — Enterprise Data Center Migration",
+      body: "Two technically-qualifying vendors invited to submit Best And Final Offer by 12 May 17:00.",
+      href: `/tenders/${tender.id}/clarifications`,
+      tenderId: tender.id,
+      createdAt: mins(720),
+    },
+    {
+      recipient: "default",
+      kind: "SCORE_REQUESTED",
+      title: "Your scores are pending — Cloud Security Services",
+      body: "You're listed as evaluator on RFP-2034-16 Round 1. 5 bids · 4 criteria.",
+      href: `/evaluations`,
+      isRead: false,
+      createdAt: mins(45),
+    },
+  ];
+  for (const n of notifs) {
+    await prisma.notification.create({
+      data: {
+        recipient: n.recipient,
+        kind: n.kind,
+        title: n.title,
+        body: n.body,
+        href: n.href,
+        tenderId: n.tenderId,
+        isRead: n.isRead ?? false,
+        createdAt: n.createdAt,
+      },
+    });
+  }
 
   // Audit log (selected events, oldest first)
   const audit: { action: any; actor: string; actorRole?: string; target?: string; summary: string; createdAt: Date }[] = [
@@ -1017,7 +1191,10 @@ async function main() {
   ];
   for (const t of supporting) await prisma.tender.create({ data: t });
 
-  console.log("◆ Seed complete: 1 hero tender, 7 supporting tenders, 5 bids, 6 risks, 4 clarifications, 11 audit entries.");
+  console.log(
+    "◆ Seed complete: 1 hero tender, 7 supporting tenders, 5 bids, 6 risks, " +
+      "1 Round-1 + 1 BAFO round, 5 approval steps, 5 notifications, 11 audit entries.",
+  );
 }
 
 main()

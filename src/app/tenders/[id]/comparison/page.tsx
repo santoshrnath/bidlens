@@ -5,9 +5,16 @@ import { toArray } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function ComparisonPage({ params }: { params: { id: string } }) {
+export default async function ComparisonPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { masked?: string };
+}) {
   const tender = await getTender(params.id);
   if (!tender) notFound();
+  const masked = searchParams?.masked === "1";
 
   const scope = toArray<any>(tender.schema?.scopeItems as any);
   const bids = tender.bids;
@@ -22,6 +29,7 @@ export default async function ComparisonPage({ params }: { params: { id: string 
       tenderId={tender.id}
       tenderName={tender.name}
       reference={tender.reference}
+      masked={masked}
       weights={{
         technical: tender.weightTechnical,
         commercial: tender.weightCommercial,
@@ -29,11 +37,13 @@ export default async function ComparisonPage({ params }: { params: { id: string 
         localContent: tender.weightLocalContent,
       }}
       scope={scope}
-      bids={orderedBids.map((b) => ({
+      bids={orderedBids.map((b, idx) => ({
         id: b.id,
-        vendorName: b.vendorName,
-        vendorShortName: b.vendorShortName ?? b.vendorName,
-        accentColor: b.accentColor,
+        vendorName: masked ? `Bidder ${String.fromCharCode(65 + idx)}` : b.vendorName,
+        vendorShortName: masked
+          ? `Bidder ${String.fromCharCode(65 + idx)}`
+          : b.vendorShortName ?? b.vendorName,
+        accentColor: masked ? "#94a3b8" : b.accentColor,
         isRecommended: b.isRecommended,
         complianceLevel: b.complianceLevel,
         overallScore: b.overallScore,

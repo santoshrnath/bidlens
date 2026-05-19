@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
@@ -9,6 +11,8 @@ import {
   Edit3,
   ArrowRight,
   ShieldAlert,
+  EyeOff,
+  Eye,
 } from "lucide-react";
 import { VendorAvatar } from "@/components/ui/vendor-avatar";
 import { RiskBadge } from "@/components/ui/risk-badge";
@@ -48,6 +52,7 @@ export function ComparisonMatrix({
   weights,
   scope,
   bids,
+  masked,
 }: {
   tenderId: string;
   tenderName: string;
@@ -55,7 +60,17 @@ export function ComparisonMatrix({
   weights: { technical: number; commercial: number; delivery: number; localContent: number };
   scope: Array<{ id: string; code: string; title: string; requirement: string; weight: number; mandatory: boolean }>;
   bids: Bid[];
+  masked?: boolean;
 }) {
+  const pathname = usePathname();
+  const sp = useSearchParams();
+  const toggleHref = useMemo(() => {
+    const next = new URLSearchParams(sp?.toString() ?? "");
+    if (masked) next.delete("masked");
+    else next.set("masked", "1");
+    const qs = next.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [masked, pathname, sp]);
   const allRisks: Array<Risk & { bidId: string; vendorName: string; accentColor: string | null }> =
     useMemo(
       () =>
@@ -94,10 +109,31 @@ export function ComparisonMatrix({
                 Weights are locked once the schema is approved. Changes are captured in the audit trail.
               </p>
             </div>
-            <button className="btn-ghost text-[12px]">
-              <Edit3 className="h-3.5 w-3.5" />
-              Edit weights
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                href={toggleHref}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12px] font-semibold transition ${
+                  masked
+                    ? "border-violet-300 bg-violet-600 text-white hover:bg-violet-700"
+                    : "border-ink-200/70 bg-white text-ink-700 hover:bg-canvas-50"
+                }`}
+                scroll={false}
+              >
+                {masked ? (
+                  <>
+                    <Eye className="h-3.5 w-3.5" /> Unmask vendors
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-3.5 w-3.5" /> Blind mode
+                  </>
+                )}
+              </Link>
+              <button className="btn-ghost text-[12px]">
+                <Edit3 className="h-3.5 w-3.5" />
+                Edit weights
+              </button>
+            </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <WeightChip label="Technical" value={weights.technical} color="violet" />
