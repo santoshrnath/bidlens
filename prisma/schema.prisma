@@ -1,0 +1,386 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// BidLens — Prisma schema
+// ─────────────────────────────────────────────────────────────────────────────
+// Models the tender evaluation workflow:
+//   Tender → ComparisonSchema → Bid → Response/Risk/Deviation
+//                            → Evaluator → Score
+//                            → ClarificationRound → ClarificationItem
+//                            → AuditEntry
+// Tenant-scoped via `tenantId` on every row.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenderStage {
+  DRAFT
+  RFP_LOADED
+  SCHEMA_REVIEW
+  OPEN_FOR_BIDS
+  IN_EVALUATION
+  CLARIFICATIONS
+  AWARD_RECOMMENDED
+  AWARDED
+  CLOSED
+}
+
+enum BidStatus {
+  UPLOADED
+  EXTRACTING
+  MAPPING
+  NORMALISED
+  READY
+  NEEDS_REVIEW
+  FAILED
+  CLARIFICATION_PENDING
+}
+
+enum RiskSeverity {
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum AuditAction {
+  TENDER_CREATED
+  RFP_UPLOADED
+  SCHEMA_GENERATED
+  SCHEMA_EDITED
+  SCHEMA_APPROVED
+  BID_UPLOADED
+  BID_EXTRACTED
+  RISK_FLAGGED
+  CLARIFICATION_RAISED
+  CLARIFICATION_ANSWERED
+  SCORE_SUBMITTED
+  WEIGHTING_CHANGED
+  COMMITTEE_INVITED
+  AWARD_RECOMMENDED
+  AWARD_APPROVED
+  DEFENSIBILITY_PACK_EXPORTED
+}
+
+model Tender {
+  id              String   @id @default(cuid())
+  tenantId        String   @default("default")
+
+  name            String
+  reference       String?
+  category        String?
+  client          String?
+  stage           TenderStage @default(DRAFT)
+  budget          Float?
+  currency        String   @default("USD")
+  issuedAt        DateTime?
+  closingAt       DateTime?
+
+  ownerName       String?
+  ownerEmail      String?
+
+  rfpFileName     String?
+  rfpFileSize     Int?
+
+  // Weights (sum should be 100)
+  weightTechnical    Int @default(40)
+  weightCommercial   Int @default(30)
+  weightDelivery     Int @default(20)
+  weightLocalContent Int @default(10)
+
+  description     String?  @db.Text
+  notes           String?  @db.Text
+
+  schema          ComparisonSchema?
+  bids            Bid[]
+  committee       Evaluator[]
+  scores          Score[]
+  risks           RiskFlag[]
+  clarifications  ClarificationRound[]
+  audit           AuditEntry[]
+  award           AwardRecommendation?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([stage])
+}
+
+model ComparisonSchema {
+  id            String   @id @default(cuid())
+  tenantId      String   @default("default")
+  tenderId      String   @unique
+  version       Int      @default(1)
+  approvedBy    String?
+  approvedAt    DateTime?
+
+  // Extracted structures (JSON)
+  scopeItems         Json?   // [{ id, code, title, requirement, weight, mandatory }]
+  pricingStructure   Json?   // { lines: [...], basis, currency }
+  evaluationCriteria Json?   // [{ id, name, weight, subcriteria: [] }]
+  mandatoryTCs       Json?   // [{ id, category, requirement, sourceRef }]
+
+  tender        Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model Bid {
+  id              String   @id @default(cuid())
+  tenantId        String   @default("default")
+  tenderId        String
+
+  vendorName      String
+  vendorShortName String?
+  vendorLogo      String?  // tiny emoji/initials seed; real impl: URL
+  accentColor     String?  // hex, for column header
+  submittedAt     DateTime?
+  validityDays    Int?
+  currency        String?
+  totalPrice      Float?
+  status          BidStatus @default(UPLOADED)
+  isRecommended   Boolean   @default(false)
+
+  // Pricing & summary
+  overallScore    Float?
+  complianceLevel String?   // "Compliant" / "Partially" / "Non-compliant"
+  strengths       Json?
+  weaknesses      Json?
+
+  // Per-criterion scores (denormalised for fast comparison reads)
+  scoreTechnical    Float?
+  scoreCommercial   Float?
+  scoreDelivery     Float?
+  scoreLocalContent Float?
+
+  // Extracted responses, keyed by scope/criterion id (JSON)
+  responses       Json?     // { "1.1": { excerpt, evidence, normalised, sourceRef }, ... }
+  pricingLines    Json?     // [{ label, qty, unit, unitPrice, total, currency }]
+  pricingNotes    String?   @db.Text
+
+  // Source file metadata
+  fileName        String?
+  fileSize        Int?
+  pageCount       Int?
+
+  tender          Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  risks           RiskFlag[]
+  scores          Score[]
+  clarifications  ClarificationItem[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenderId])
+}
+
+model RiskFlag {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("default")
+  tenderId     String
+  bidId        String
+
+  category     String   // "Liability", "Payment terms", "Warranty", "IP", ...
+  clauseRef    String?  // e.g. "12.1" or "Section 4.3"
+  severity     RiskSeverity @default(MEDIUM)
+  title        String
+  description  String   @db.Text
+  vendorPosition String? @db.Text   // what the vendor's clause actually says
+  schemaRequirement String? @db.Text // what the RFP requires
+  pageRef      String?
+  resolved     Boolean  @default(false)
+  resolvedAt   DateTime?
+  resolvedNote String?  @db.Text
+
+  tender       Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  bid          Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenderId])
+  @@index([bidId])
+  @@index([severity])
+}
+
+model Evaluator {
+  id          String   @id @default(cuid())
+  tenantId    String   @default("default")
+  tenderId    String
+
+  fullName    String
+  email       String
+  role        String?   // "Procurement Manager", "Technical Lead", "Finance", "Committee Chair"
+  weightShare Float?    // 0..1
+  invited     Boolean   @default(true)
+  hasSubmitted Boolean  @default(false)
+
+  tender      Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  scores      Score[]
+
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenderId])
+}
+
+model Score {
+  id            String   @id @default(cuid())
+  tenantId      String   @default("default")
+  tenderId      String
+  bidId         String
+  evaluatorId   String?
+
+  criterion     String   // "technical" | "commercial" | "delivery" | "localContent" | custom
+  value         Float    // 0..10
+  comment       String?  @db.Text
+  evidenceRef   String?
+
+  tender        Tender    @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  bid           Bid       @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  evaluator     Evaluator? @relation(fields: [evaluatorId], references: [id], onDelete: SetNull)
+
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenderId])
+  @@index([bidId])
+}
+
+model ClarificationRound {
+  id          String   @id @default(cuid())
+  tenantId    String   @default("default")
+  tenderId    String
+  number      Int
+  openedAt    DateTime @default(now())
+  closedAt    DateTime?
+  note        String?  @db.Text
+
+  tender      Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  items       ClarificationItem[]
+
+  @@index([tenantId])
+  @@index([tenderId])
+}
+
+model ClarificationItem {
+  id              String   @id @default(cuid())
+  tenantId        String   @default("default")
+  roundId         String
+  bidId           String
+
+  schemaItemRef   String?   // e.g. "1.2 Infrastructure Design"
+  question        String    @db.Text
+  status          String    @default("open") // "open" | "responded" | "closed"
+  response        String?   @db.Text
+  changedItems    Json?     // [{ ref, before, after }]
+  raisedBy        String?
+  respondedAt     DateTime?
+
+  round           ClarificationRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  bid             Bid                @relation(fields: [bidId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([roundId])
+  @@index([bidId])
+}
+
+model AwardRecommendation {
+  id               String   @id @default(cuid())
+  tenantId         String   @default("default")
+  tenderId         String   @unique
+
+  recommendedBidId String
+  rationale        String?  @db.Text
+  status           String   @default("draft") // draft | submitted | approved | rejected
+  requestedBy      String?
+  approvers        Json?    // [{ name, role, decision, at }]
+  contractValue    Float?
+  currency         String?
+
+  tender           Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model AuditEntry {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("default")
+  tenderId     String
+
+  actor        String
+  actorRole    String?
+  action       AuditAction
+  target       String?      // free-text: "Bid: TechNova" / "Clause 12.1"
+  summary      String       @db.Text
+  meta         Json?
+
+  tender       Tender    @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId])
+  @@index([tenderId])
+  @@index([action])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Library / shared models
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Vendor {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("default")
+  name         String
+  shortName    String?
+  country      String?
+  category     String?
+  rating       Float?
+  bidsRun      Int      @default(0)
+  awardsWon    Int      @default(0)
+  notes        String?  @db.Text
+  accentColor  String?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model ClauseTemplate {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("default")
+  category     String
+  title        String
+  body         String   @db.Text
+  riskLevel    RiskSeverity @default(LOW)
+  tags         Json?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model TenderTemplate {
+  id           String   @id @default(cuid())
+  tenantId     String   @default("default")
+  name         String
+  category     String?
+  description  String?  @db.Text
+  schemaSeed   Json?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId])
+}

@@ -1,0 +1,67 @@
+# =============================================================================
+# BidLens — production compose
+# =============================================================================
+# Spins up:
+#   - bidlens-app   (Next.js, port ${BIDLENS_PORT:-3080})
+#   - bidlens-db    (Postgres 17)
+#
+# On Hetzner: routed by the shared Coolify-managed Traefik network.
+# Locally:    `docker compose up` and visit http://localhost:${BIDLENS_PORT}.
+# =============================================================================
+services:
+  bidlens-app:
+    build:
+      context: .
+      network: host
+    container_name: bidlens-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://bidlens:bidlens@bidlens-db:5432/bidlens?schema=public
+    ports:
+      - "${BIDLENS_PORT:-3080}:3000"
+    depends_on:
+      bidlens-db:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=coolify"
+      - "traefik.http.middlewares.bidlens-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.bidlens-http.entryPoints=http"
+      - "traefik.http.routers.bidlens-http.rule=Host(`${PUBLIC_HOSTNAME:-bidlens.oneplaceplatform.com}`)"
+      - "traefik.http.routers.bidlens-http.middlewares=bidlens-redirect"
+      - "traefik.http.routers.bidlens-https.entryPoints=https"
+      - "traefik.http.routers.bidlens-https.rule=Host(`${PUBLIC_HOSTNAME:-bidlens.oneplaceplatform.com}`)"
+      - "traefik.http.routers.bidlens-https.tls=true"
+      - "traefik.http.routers.bidlens-https.tls.certresolver=letsencrypt"
+      - "traefik.http.services.bidlens.loadbalancer.server.port=3000"
+    networks:
+      - bidlens-net
+      - coolify
+
+  bidlens-db:
+    image: postgres:17-alpine
+    container_name: bidlens-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bidlens
+      POSTGRES_PASSWORD: bidlens
+      POSTGRES_DB: bidlens
+    volumes:
+      - bidlens-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bidlens"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bidlens-net
+
+volumes:
+  bidlens-db-data:
+
+networks:
+  bidlens-net:
+  coolify:
+    external: true
