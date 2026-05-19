@@ -2,7 +2,26 @@
 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  ClipboardCheck,
+  FileSpreadsheet,
+  AlertTriangle,
+  ShieldCheck,
+  BarChart3,
+  Award,
+  type LucideIcon,
+} from "lucide-react";
+
+const ICONS: Record<string, LucideIcon> = {
+  clipboard: ClipboardCheck,
+  tenders: FileSpreadsheet,
+  alert: AlertTriangle,
+  shield: ShieldCheck,
+  chart: BarChart3,
+  award: Award,
+};
 
 export function StatCard({
   label,
@@ -10,7 +29,7 @@ export function StatCard({
   delta,
   hint,
   accent = "violet",
-  icon: Icon,
+  icon,
   index = 0,
 }: {
   label: string;
@@ -18,9 +37,10 @@ export function StatCard({
   delta?: { dir: "up" | "down"; value: string };
   hint?: string;
   accent?: "violet" | "emerald" | "amber" | "sky";
-  icon?: any;
+  icon?: keyof typeof ICONS;
   index?: number;
 }) {
+  const Icon = icon ? ICONS[icon] : null;
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}

@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { fmtMoney } from "@/lib/utils";
 import { StatCard } from "@/components/ui/stat-card";
-import { BarChart3, FileSpreadsheet, AlertTriangle, Award } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +34,7 @@ export default async function ReportsPage() {
           label="Total contract value"
           value={fmtMoney(totalBudget, "USD", true)}
           accent="violet"
-          icon={BarChart3}
+          icon="chart"
           hint="across all tenders"
           index={0}
         />
@@ -43,7 +42,7 @@ export default async function ReportsPage() {
           label="Bids analysed"
           value={bids}
           accent="sky"
-          icon={FileSpreadsheet}
+          icon="tenders"
           hint="YTD"
           index={1}
         />
@@ -51,7 +50,7 @@ export default async function ReportsPage() {
           label="High-risk flags"
           value={risks.find((r) => r.severity === "HIGH")?._count._all ?? 0}
           accent="amber"
-          icon={AlertTriangle}
+          icon="alert"
           hint="open"
           index={2}
         />
@@ -59,7 +58,7 @@ export default async function ReportsPage() {
           label="Awards pending"
           value={awards}
           accent="emerald"
-          icon={Award}
+          icon="award"
           hint="committee approval"
           index={3}
         />

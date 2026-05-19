@@ -2,13 +2,7 @@ import { HeroCard } from "@/components/dashboard/hero-card";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { ActiveTenders } from "@/components/dashboard/active-tenders";
 import { StatCard } from "@/components/ui/stat-card";
-import {
-  ClipboardCheck,
-  FileSpreadsheet,
-  AlertTriangle,
-  Users,
-  ShieldCheck,
-} from "lucide-react";
+import { Users, ShieldCheck } from "lucide-react";
 import { getDashboardData } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -34,14 +28,14 @@ export default async function DashboardPage() {
           delta={{ dir: "up", value: "+2" }}
           hint="this month"
           accent="violet"
-          icon={FileSpreadsheet}
+          icon="tenders"
           index={0}
         />
         <StatCard
           label="Open clarifications"
           value={data.clarifs}
           accent="amber"
-          icon={ClipboardCheck}
+          icon="clipboard"
           hint="across 3 tenders"
           index={1}
         />
@@ -51,14 +45,14 @@ export default async function DashboardPage() {
           delta={{ dir: "down", value: "-1" }}
           hint="vs last week"
           accent="amber"
-          icon={AlertTriangle}
+          icon="alert"
           index={2}
         />
         <StatCard
           label="Awaiting approval"
           value={data.approvals}
           accent="emerald"
-          icon={ShieldCheck}
+          icon="shield"
           hint="award packs"
           index={3}
         />
